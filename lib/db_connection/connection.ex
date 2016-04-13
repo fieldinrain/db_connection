@@ -318,6 +318,12 @@ defmodule DBConnection.Connection do
     end
   end
 
+  def handle_info({:tcp_closed, _}, s) do
+    exception = DBConnection.Error.exception("server socket closed")
+    %{mod: _, state: state} = s
+    {:disconnect, exception, %{s | state: state}}
+  end
+
   def handle_info({ref, msg}, %{client: {ref, :broker}} = s) do
     handle_broker(msg, s)
   end
