@@ -822,13 +822,13 @@ defmodule DBConnection do
     end
   end
 
-  defp checkout_with_retry(pool_mod, opts, max_retry, error) when max_retry < 0 do
+  defp checkout_with_retry(_pool_mod, _opts, max_retry, error) when max_retry < 0 do
     error
   end
-  defp checkout_with_retry(pool_mod, opts, max_retry, error) do
+  defp checkout_with_retry(pool_mod, opts, max_retry, _error) do
     case apply(pool_mod, :checkout,  opts) do
-      {:ok, pool_ref, conn_mod, conn_state} = ok -> ok
-      {:error, err} = error ->
+      {:ok, _pool_ref, _conn_mod, _conn_state} = ok -> ok
+      {:error, _err} = error ->
         if max_retry > 0 do
           retry_msleep = Keyword.get(opts, :retry_checkout_msleep, @retry_msleep)
           :timer.sleep(retry_msleep)
