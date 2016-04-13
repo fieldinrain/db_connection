@@ -394,7 +394,7 @@ defmodule DBConnection.Connection do
         timer = start_timer(timeout)
         {:noreply,  %{s | client: client, timer: timer, state: state}}
       {:disconnect, err, state} ->
-        {:disconnect, err, %{s | state: state}}
+        {:disconnect, err, {:error, "disconnected"}, %{s | state: state}}
     end
   end
 
