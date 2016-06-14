@@ -7,7 +7,7 @@ defmodule DBConnection.Poolboy do
     * `:pool_size` - The number of connections (default: `10`)
     * `:pool_overflow` - The maximum number of overflow connections to
     start if all connections are checked out (default: `0`)
-    * `:queue_out` - Either `:out` for a FIFO queue or `:out_r` for a
+    * `:idle_out` - Either `:out` for a FIFO queue or `:out_r` for a
     LIFO queue (default: `:out`)
   """
 
@@ -35,7 +35,8 @@ defmodule DBConnection.Poolboy do
 
     case :poolboy.checkout(pool, queue?, pool_timeout) do
       :full ->
-        err = DBConnection.Error.exception("connection not available")
+        message = "connection not available and queuing is disabled"
+        err = DBConnection.ConnectionError.exception(message)
         {:error, err}
       worker ->
         checkout(pool, worker, opts)
@@ -44,23 +45,23 @@ defmodule DBConnection.Poolboy do
 
   @doc false
   def checkin({pool, worker, worker_ref}, state, opts) do
-    :poolboy.checkin(pool, worker)
     DBConnection.Connection.checkin(worker_ref, state, opts)
+    :poolboy.checkin(pool, worker)
   end
 
   @doc false
   def disconnect({pool, worker, worker_ref}, err, state, opts) do
-    :poolboy.checkin(pool, worker)
     DBConnection.Connection.disconnect(worker_ref, err, state, opts)
+    :poolboy.checkin(pool, worker)
   end
 
   @doc false
-  def stop({pool, worker, worker_ref}, reason, state, opts) do
+  def stop({pool, worker, worker_ref}, err, state, opts) do
     # Synchronous stop is required to prevent checking in a worker thats
     # about to exit as it can cause a client to get a worker thats about
     # to exit.
     try do
-      DBConnection.Connection.sync_stop(worker_ref, reason, state, opts)
+      DBConnection.Connection.sync_stop(worker_ref, err, state, opts)
     after
       :poolboy.checkin(pool, worker)
     end
@@ -77,7 +78,7 @@ defmodule DBConnection.Poolboy do
   end
 
   defp strategy(opts) do
-    case Keyword.get(opts, :queue_out, :out) do
+    case Keyword.get(opts, :idle_out, :out) do
       :out   -> :fifo
       :out_r -> :lifo
     end

@@ -116,7 +116,7 @@ defmodule AfterConnectTest do
       _ = Process.put(:agent, agent)
       case P.execute(conn, %Q{}, [:after_connect]) do
         {:error, ^err} ->
-          assert_raise DBConnection.Error, "connection is closed",
+          assert_raise DBConnection.Connection.Error, "connection is closed",
             fn() -> P.execute(conn, %Q{}, [:after_connect]) end
           :ok
         {:ok, %R{}} ->
@@ -139,7 +139,7 @@ defmodule AfterConnectTest do
       handle_execute: [%Q{}, [:client], _, :new_state2]] = A.record(agent)
   end
 
-  test "after_connect execute bad return raises DBConnection.Error and stops" do
+  test "after_connect execute bad return raises DBConnection.ConnectionError" do
     stack = [
       fn(opts) ->
         send(opts[:parent], {:hi, self()})
@@ -153,20 +153,27 @@ defmodule AfterConnectTest do
      ]
     {:ok, agent} = A.start_link(stack)
 
+    parent = self()
     after_connect = fn(conn) ->
+      send(parent, {:after_connect, self()})
       _ = Process.put(:agent, agent)
-      assert_raise DBConnection.Error, "bad return value: :oops",
+      assert_raise DBConnection.ConnectionError, "bad return value: :oops",
         fn() -> P.execute(conn, %Q{}, [:after_connect]) end
       :ok
     end
-    opts = [after_connect: after_connect, agent: agent, parent: self()]
+    opts = [after_connect: after_connect, agent: agent, parent: parent]
     Process.flag(:trap_exit, true)
     {:ok, _} = P.start_link(opts)
 
     assert_receive {:hi, conn}
 
+    assert_receive {:after_connect, after_pid}
+    prefix = "client #{inspect after_pid} stopped: " <>
+      "** (DBConnection.ConnectionError) bad return value: :oops"
+    len = byte_size(prefix)
     assert_receive {:EXIT, ^conn,
-      {%DBConnection.Error{message: "client stopped: " <> _}, [_|_]}}
+      {%DBConnection.ConnectionError{message: <<^prefix::binary-size(len), _::binary>>},
+        [_|_]}}
 
     assert [
       {:connect, _},
@@ -189,20 +196,26 @@ defmodule AfterConnectTest do
       ]
     {:ok, agent} = A.start_link(stack)
 
+    parent = self()
     after_connect = fn(conn) ->
+      send(parent, {:after_connect, self()})
       _ = Process.put(:agent, agent)
       assert_raise RuntimeError, "oops",
         fn() -> P.execute(conn, %Q{}, [:after_connect]) end
       :ok
     end
-    opts = [after_connect: after_connect, agent: agent, parent: self()]
+    opts = [after_connect: after_connect, agent: agent, parent: parent]
     Process.flag(:trap_exit, true)
     {:ok, _} = P.start_link(opts)
 
     assert_receive {:hi, conn}
 
+    assert_receive {:after_connect, after_pid}
+    prefix = "client #{inspect after_pid} stopped: ** (RuntimeError) oops"
+    len = byte_size(prefix)
     assert_receive {:EXIT, ^conn,
-      {%DBConnection.Error{message: "client stopped: " <> _}, [_|_]}}
+      {%DBConnection.ConnectionError{message: <<^prefix::binary-size(len), _::binary>>},
+       [_|_]}}
 
     assert [
       {:connect, _},
@@ -239,7 +252,7 @@ defmodule AfterConnectTest do
     assert [
       {:connect, _},
       {:handle_execute, [%Q{}, [:after_connect], _, :state]},
-      {:disconnect, [%DBConnection.Error{}, :state]},
+      {:disconnect, [%DBConnection.ConnectionError{}, :state]},
       {:connect, _},
       {:handle_execute, [%Q{}, [:after_connect], _, :state2]},
       {:handle_execute, [%Q{}, [:client], _, :new_state2]}|

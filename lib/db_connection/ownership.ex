@@ -1,3 +1,9 @@
+defmodule DBConnection.OwnershipError do
+  defexception [:message]
+
+  def exception(message), do: %DBConnection.OwnershipError{message: message}
+end
+
 defmodule DBConnection.Ownership do
   @moduledoc """
   A `DBConnection.Pool` that requires explicit checkout and checking
@@ -32,7 +38,7 @@ defmodule DBConnection.Ownership do
   @behaviour DBConnection.Pool
 
   alias DBConnection.Ownership.Manager
-  alias DBConnection.Ownership.Owner
+  alias DBConnection.Ownership.Proxy
 
   ## Ownership API
 
@@ -48,7 +54,7 @@ defmodule DBConnection.Ownership do
     :ok | {:already, :owner | :allowed} | :error | no_return
   def ownership_checkout(manager, opts) do
      case Manager.checkout(manager, opts) do
-      {:init, owner} -> Owner.init(owner, opts)
+      {:init, proxy} -> Proxy.init(proxy, opts)
       {:already, _} = already -> already
     end
   end
@@ -107,13 +113,13 @@ defmodule DBConnection.Ownership do
   @doc false
   def checkout(manager, opts) do
     case Manager.lookup(manager, opts) do
-      {:init, owner} ->
-        case Owner.init(owner, opts) do
-          :ok                 -> Owner.checkout(owner, opts)
+      {:init, proxy} ->
+        case Proxy.init(proxy, opts) do
+          :ok                 -> Proxy.checkout(proxy, opts)
           {:error, _} = error -> error
         end
-      {:ok, owner} ->
-        Owner.checkout(owner, opts)
+      {:ok, proxy} ->
+        Proxy.checkout(proxy, opts)
       :not_found ->
         case Keyword.pop(opts, :caller) do
           {nil, _} ->
@@ -138,7 +144,7 @@ defmodule DBConnection.Ownership do
             If you are reading this error, it means you have not done one
             of the steps above or that the owner process has crashed.
             """
-            {:error, RuntimeError.exception(msg)}
+            {:error, DBConnection.OwnershipError.exception(msg)}
           {owner, opts} ->
             ownership_allow(manager, owner, self(), opts)
             checkout(manager, [pool_timeout: :infinity] ++ opts)
@@ -147,17 +153,17 @@ defmodule DBConnection.Ownership do
   end
 
   @doc false
-  def checkin(owner, state, opts) do
-    Owner.checkin(owner, state, opts)
+  def checkin(proxy, state, opts) do
+    Proxy.checkin(proxy, state, opts)
   end
 
   @doc false
-  def disconnect(owner, exception, state, opts) do
-    Owner.disconnect(owner, exception, state, opts)
+  def disconnect(proxy, exception, state, opts) do
+    Proxy.disconnect(proxy, exception, state, opts)
   end
 
   @doc false
-  def stop(owner, reason, state, opts) do
-    Owner.stop(owner, reason, state, opts)
+  def stop(proxy, err, state, opts) do
+    Proxy.stop(proxy, err, state, opts)
   end
 end

@@ -14,7 +14,8 @@ defmodule QueueTest do
     P.run(pool, fn(_) ->
       {queue_time, _} = :timer.tc(fn() ->
         opts = [queue: false]
-        assert_raise DBConnection.Error, "connection not available",
+        assert_raise DBConnection.ConnectionError,
+          "connection not available and queuing is disabled",
           fn() -> P.run(pool, fn(_) -> flunk("got connection") end, opts) end
       end)
       assert queue_time <= 1_000_000, "request was queued"
@@ -59,7 +60,7 @@ defmodule QueueTest do
       try do
         P.run(pool, fn(_) -> flunk("run ran") end, [pool_timeout: 50])
       rescue
-        DBConnection.Error ->
+        DBConnection.ConnectionError ->
           :error
       catch
         :exit, {:timeout, _} ->
@@ -106,7 +107,8 @@ defmodule QueueTest do
     assert P.run(pool, fn(_) -> :result end) == :result
   end
 
-  test "queue raises when disconnected" do
+  @tag :enqueue_disconnected
+  test "queue raises disconnect error when disconnected" do
     stack = [{:error, RuntimeError.exception("oops")}]
     {:ok, agent} = A.start_link(stack)
 
@@ -115,9 +117,63 @@ defmodule QueueTest do
 
     {queue_time, _} = :timer.tc(fn() ->
       opts = [queue: false]
-      assert_raise DBConnection.Error, "connection not available",
+      assert_raise DBConnection.ConnectionError,
+      "connection not available because of disconnection",
         fn() -> P.run(pool, fn(_) -> flunk("got connection") end, opts) end
     end)
     assert queue_time <= 1_000_000, "request was queued"
+  end
+
+  @tag :dequeue_disconnected
+  test "queue raises dropped from queue when disconnected" do
+    stack = [{:error, RuntimeError.exception("oops")}]
+    {:ok, agent} = A.start_link(stack)
+
+    opts = [agent: agent, parent: self(), backoff_start: 30_000]
+    {:ok, pool} = P.start_link(opts)
+
+    {queue_time, _} = :timer.tc(fn() ->
+      opts = [queue: false]
+      assert_raise DBConnection.ConnectionError,
+        "connection not available and queuing is disabled",
+        fn() -> P.run(pool, fn(_) -> flunk("got connection") end, opts) end
+    end)
+    assert queue_time <= 1_000_000, "request was queued"
+  end
+
+  @tag :queue_timeout_exit
+  test "queue exits on timeout" do
+    stack = [{:ok, :state}]
+    {:ok, agent} = A.start_link(stack)
+
+    opts = [agent: agent, parent: self(), backoff_start: 30_000,
+      queue_timeout: 10, pool_timeout: 10]
+    {:ok, pool} = P.start_link(opts)
+
+    P.run(pool, fn(_) ->
+      assert {:timeout, {_, _, _}} = catch_exit(P.run(pool, fn() ->
+        flunk("got connection")
+      end, opts))
+    end)
+
+    assert P.run(pool, fn(_) -> :hi end) == :hi
+  end
+
+  @tag :queue_timeout_raise
+  test "queue raise on timeout" do
+    stack = [{:ok, :state}]
+    {:ok, agent} = A.start_link(stack)
+
+    opts = [agent: agent, parent: self(), backoff_start: 30_000,
+      queue_timeout: 10, pool_timeout: 10]
+    {:ok, pool} = P.start_link(opts)
+
+    P.run(pool, fn(_) ->
+      assert_raise DBConnection.ConnectionError,
+        ~r"^connection not available and request was dropped from queue after \d+ms$",
+        fn() -> P.run(pool, fn(_) -> flunk("got connection") end, opts) end
+    end)
+
+    assert P.run(pool, fn(_) -> :hi end) == :hi
   end
 end

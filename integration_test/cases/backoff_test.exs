@@ -95,7 +95,7 @@ defmodule BackoffTest do
     Process.flag(:trap_exit, true)
     {:ok, _} = P.start_link(opts)
     assert_receive {:hi, conn}
-    assert_receive {:EXIT, ^conn, {:shutdown, :disconnect}}
+    assert_receive {:EXIT, ^conn, {:shutdown, ^err}}
 
     assert [
       {:connect, [_]},
@@ -125,7 +125,7 @@ defmodule BackoffTest do
 
     assert [
       {:connect, [_]},
-      {:disconnect, [%DBConnection.Error{}, :state]},
+      {:disconnect, [%DBConnection.ConnectionError{}, :state]},
       {:connect, [_]} | _] = A.record(agent)
   end
 end

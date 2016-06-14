@@ -167,7 +167,7 @@ defmodule ExecuteTest do
       connect: [opts2]] = A.record(agent)
   end
 
-  test "execute bad return raises DBConnection.Error and stops connection" do
+  test "execute bad return raises DBConnection.ConnectionError and stops" do
     stack = [
       fn(opts) ->
         send(opts[:parent], {:hi, self()})
@@ -184,11 +184,15 @@ defmodule ExecuteTest do
     assert_receive {:hi, conn}
 
     Process.flag(:trap_exit, true)
-    assert_raise DBConnection.Error, "bad return value: :oops",
+    assert_raise DBConnection.ConnectionError, "bad return value: :oops",
       fn() -> P.execute(pool, %Q{}, [:param]) end
 
+    prefix = "client #{inspect self()} stopped: " <>
+      "** (DBConnection.ConnectionError) bad return value: :oops"
+    len = byte_size(prefix)
     assert_receive {:EXIT, ^conn,
-      {%DBConnection.Error{message: "client stopped: " <> _}, [_|_]}}
+      {%DBConnection.ConnectionError{message: <<^prefix::binary-size(len), _::binary>>},
+        [_|_]}}
 
     assert [
       {:connect, _},
@@ -217,8 +221,11 @@ defmodule ExecuteTest do
     assert_raise RuntimeError, "oops",
       fn() -> P.execute(pool, %Q{}, [:param]) end
 
+    prefix = "client #{inspect self()} stopped: ** (RuntimeError) oops"
+    len = byte_size(prefix)
     assert_receive {:EXIT, ^conn,
-      {%DBConnection.Error{message: "client stopped: " <> _}, [_|_]}}
+      {%DBConnection.ConnectionError{message: <<^prefix::binary-size(len), _::binary>>},
+       [_|_]}}
 
     assert [
       {:connect, _},
