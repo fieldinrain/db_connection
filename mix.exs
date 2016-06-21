@@ -2,22 +2,22 @@ defmodule DBConnection.Mixfile do
   use Mix.Project
 
   @pools [:connection, :poolboy, :sojourn, :ownership]
-  @version "1.0.0-rc.0"
+  @version "1.0.0-rc.2"
 
   def project do
     [app: :db_connection,
      version: @version,
      elixir: "~> 1.0",
-     deps: deps,
-     docs: docs,
-     description: description,
-     package: package,
+     deps: deps(),
+     docs: docs(),
+     description: description(),
+     package: package(),
      build_per_environment: false,
      consolidate_protocols: false,
      test_paths: test_paths(Mix.env),
      aliases: ["test.all": ["test", "test.pools"],
                "test.pools": &test_pools/1],
-     xref: [exclude: [:sbroker, :poolboy]],
+     xref: [exclude: [:sbroker, :poolboy, :sregulator]],
      preferred_cli_env: ["test.all": :test]]
   end
 
@@ -30,12 +30,11 @@ defmodule DBConnection.Mixfile do
     [{:connection, "~> 1.0.2"},
      {:poolboy, "~> 1.5", [optional: true]},
      {:sbroker, "~> 1.0.0-beta.2", [optional: true]},
-     {:earmark, "~> 0.1", only: :dev},
-     {:ex_doc, "~> 0.11.1", only: :dev}]
+     {:ex_doc, "~> 0.12", only: :dev}]
   end
 
   defp docs do
-    [source_url: "https://github.com/fishcakez/db_connection",
+    [source_url: "https://github.com/elixir-ecto/db_connection",
      source_ref: "v#{@version}",
      main: DBConnection]
   end
@@ -49,7 +48,7 @@ defmodule DBConnection.Mixfile do
   defp package do
     %{licenses: ["Apache 2.0"],
       maintainers: ["James Fish"],
-      links: %{"Github" => "https://github.com/fishcakez/db_connection"}}
+      links: %{"Github" => "https://github.com/elixir-ecto/db_connection"}}
   end
 
   defp test_paths(pool) when pool in @pools, do: ["integration_test/#{pool}"]

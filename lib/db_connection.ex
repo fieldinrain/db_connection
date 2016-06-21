@@ -318,6 +318,21 @@ defmodule DBConnection do
   end
 
   @doc """
+  Ensures the given pool applications have been started.
+
+  ### Options
+
+    * `:pool` - The `DBConnection.Pool` module to use, (default:
+    `DBConnection.Connection`)
+
+  """
+  @spec ensure_all_started(opts :: Keyword.t, type :: atom) ::
+    {:ok, [atom]} | {:error, atom}
+  def ensure_all_started(opts, type \\ :temporary) do
+    Keyword.get(opts, :pool, DBConnection.Connection).ensure_all_started(opts, type)
+  end
+
+  @doc """
   Start and link to a database connection process.
 
   ### Options
@@ -420,7 +435,7 @@ defmodule DBConnection do
   preprared query and the result, `{:ok, query, result}` on success or
   `{:error, exception}` if there was an error.
 
-  The returned `query` can be passed to `execute/4 and `close/3`.
+  The returned `query` can be passed to `execute/4` and `close/3`.
 
   ### Options
 
@@ -442,7 +457,7 @@ defmodule DBConnection do
       :ok                 = DBConnection.close(pid, query)
    """
   @spec prepare_execute(conn, query, params, Keyword.t) ::
-    {:ok, {query, result}} |
+    {:ok, query, result} |
     {:error, Exception.t}
   def prepare_execute(conn, query, params, opts \\ []) do
     query = DBConnection.Query.parse(query, opts)
