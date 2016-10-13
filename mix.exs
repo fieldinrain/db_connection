@@ -2,12 +2,12 @@ defmodule DBConnection.Mixfile do
   use Mix.Project
 
   @pools [:connection, :poolboy, :sojourn, :ownership]
-  @version "1.0.0-rc.2"
+  @version "1.0.0"
 
   def project do
     [app: :db_connection,
      version: @version,
-     elixir: "~> 1.0",
+     elixir: "~> 1.2",
      deps: deps(),
      docs: docs(),
      description: description(),
@@ -29,7 +29,7 @@ defmodule DBConnection.Mixfile do
   defp deps do
     [{:connection, "~> 1.0.2"},
      {:poolboy, "~> 1.5", [optional: true]},
-     {:sbroker, "~> 1.0.0-beta.2", [optional: true]},
+     {:sbroker, "~> 1.0", [optional: true]},
      {:ex_doc, "~> 0.12", only: :dev}]
   end
 
